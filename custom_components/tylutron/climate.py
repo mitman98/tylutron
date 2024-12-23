@@ -20,7 +20,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .lutronlib import (
+from .lutronlib.lutronlib import (
     Lutron,
     ThermostatMode,
     ThermostatFanMode,
@@ -179,22 +179,28 @@ class TylutronThermostat(ClimateEntity):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
-        if ATTR_TEMPERATURE in kwargs:
-            if self.hvac_mode == HVACMode.HEAT:
-                await self.hass.async_add_executor_job(
-                    self._thermostat.set_setpoints, kwargs[ATTR_TEMPERATURE], None
-                )
-            elif self.hvac_mode == HVACMode.COOL:
-                await self.hass.async_add_executor_job(
-                    self._thermostat.set_setpoints, None, kwargs[ATTR_TEMPERATURE]
-                )
-        else:
-            low_temp = kwargs.get("target_temp_low")
-            high_temp = kwargs.get("target_temp_high")
-            if low_temp is not None and high_temp is not None:
-                await self.hass.async_add_executor_job(
-                    self._thermostat.set_setpoints, low_temp, high_temp
-                )
+        try:
+            if ATTR_TEMPERATURE in kwargs:
+                temp = float(kwargs[ATTR_TEMPERATURE])
+                if self.hvac_mode == HVACMode.HEAT:
+                    await self.hass.async_add_executor_job(
+                        self._thermostat.set_setpoints, temp, None
+                    )
+                elif self.hvac_mode == HVACMode.COOL:
+                    await self.hass.async_add_executor_job(
+                        self._thermostat.set_setpoints, None, temp
+                    )
+            else:
+                low_temp = kwargs.get("target_temp_low")
+                high_temp = kwargs.get("target_temp_high")
+                if low_temp is not None and high_temp is not None:
+                    if float(high_temp) <= float(low_temp):
+                        raise ValueError("High temp must be greater than low temp")
+                    await self.hass.async_add_executor_job(
+                        self._thermostat.set_setpoints, float(low_temp), float(high_temp)
+                    )
+        except ValueError as err:
+            _LOGGER.error("Invalid temperature value: %s", err)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""

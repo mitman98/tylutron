@@ -10,7 +10,7 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platfor
 from homeassistant.core import HomeAssistant
 
 from .const import DEFAULT_PASSWORD, DEFAULT_USERNAME, DOMAIN
-from .lutronlib import Lutron
+from .lutronlib.lutronlib import Lutron
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +50,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        lutron = hass.data[DOMAIN].pop(entry.entry_id)
+        # Add cleanup
+        try:
+            await hass.async_add_executor_job(lutron._conn.disconnect)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Error disconnecting from Lutron hub")
     return unload_ok 
