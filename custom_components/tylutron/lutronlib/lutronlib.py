@@ -85,11 +85,8 @@ class LutronConnection(threading.Thread):
       self._connect_cond.wait_for(lambda: self._connected)
 
   def _send_locked(self, cmd):
-    """Sends the specified command to the lutron controller.
-
-    Assumes self._lock is held.
-    """
-    _LOGGER.debug("Sending (locked): %s", cmd)
+    """Sends the specified command to the lutron controller."""
+    _LOGGER.debug("Sending: %s", cmd)
     try:
       self._telnet.write(cmd.encode('ascii') + b'\r\n')
     except _EXPECTED_NETWORK_EXCEPTIONS:
@@ -103,7 +100,7 @@ class LutronConnection(threading.Thread):
     """
     with self._lock:
       if not self._connected:
-        _LOGGER.debug("Ignoring send of '%s' because we are disconnected." % cmd)
+        _LOGGER.debug("Ignoring send of '%s' because we are disconnected", cmd)
         return
       self._send_locked(cmd)
 
@@ -490,18 +487,18 @@ class Lutron(object):
     # Only handle query response messages, which are also sent on remote status
     # updates (e.g. user manually pressed a keypad button)
     if line[0] != Lutron.OP_RESPONSE:
-      _LOGGER.debug("ignoring %s" % line)
+      _LOGGER.debug("ignoring %s", line)
       return
     parts = line[1:].split(',')
     cmd_type = parts[0]
     integration_id = int(parts[1])
     args = parts[2:]
     if cmd_type not in self._ids:
-      _LOGGER.info("Unknown cmd %s (%s)" % (cmd_type, line))
+      _LOGGER.info("Unknown cmd %s (%s)", cmd_type, line)
       return
     ids = self._ids[cmd_type]
     if integration_id not in ids:
-      _LOGGER.warning("Unknown id %d (%s)" % (integration_id, line))
+      _LOGGER.warning("Unknown id %d (%s)", integration_id, line)
       return
     obj = ids[integration_id]
     handled = obj.handle_update(args)
@@ -546,15 +543,15 @@ class Lutron(object):
             xml_db = xmlfile.read()
             loaded_from = 'repeater'
 
-    _LOGGER.info("Loaded xml db from %s" % loaded_from)
+    _LOGGER.info("Loaded xml db from %s", loaded_from)
 
     parser = LutronXmlDbParser(lutron=self, xml_db_str=xml_db)
     assert(parser.parse())     # throw our own exception
     self._areas = parser.areas
     self._name = parser.project_name
 
-    _LOGGER.info('Found Lutron project: %s, %d areas' % (
-        self._name, len(self.areas)))
+    _LOGGER.info("Found Lutron project: %s, %d areas",
+        self._name, len(self.areas))
 
     if cache_path and loaded_from == 'repeater':
         with open(cache_path, 'wb') as f:
@@ -1682,8 +1679,6 @@ class Thermostat(LutronEntity):
             elif action == self._ACTION_SENSOR_STATUS:
                 self._sensor_status = ThermostatSensorStatus(int(args[1]))
                 self._sensor_status_query.notify()
-                self._dispatch_event(Thermostat.Event.SENSOR_STATUS_CHANGED,
-                                   {'status': self._sensor_status})
                 
             elif action == self._ACTION_SYSTEM_MODE:
                 self._system_mode = ThermostatSystemMode(int(args[1]))
