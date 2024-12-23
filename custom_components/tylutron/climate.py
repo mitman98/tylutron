@@ -120,8 +120,16 @@ class TylutronThermostat(ClimateEntity):
     def _handle_update(self, device, context, event, params):
         """Handle updates from the thermostat."""
         _LOGGER.debug(
-            "Received update from thermostat %s: event=%s, params=%s",
+            "Climate entity %s received update - event: %s, params: %s",
             self.name, event, params
+        )
+        # Add state logging
+        _LOGGER.debug(
+            "Current state - temp: %s, mode: %s, fan: %s, eco: %s",
+            self._thermostat.temperature,
+            self._thermostat.mode,
+            self._thermostat.fan_mode,
+            self._thermostat.eco_mode
         )
         self.schedule_update_ha_state()
 

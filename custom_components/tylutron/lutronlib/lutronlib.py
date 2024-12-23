@@ -477,29 +477,35 @@ class Lutron(object):
 
   def _recv(self, line):
     """Invoked by the connection manager to process incoming data."""
-    _LOGGER.debug("Received from Lutron: %s", line)
+    _LOGGER.debug("Raw line received: %s", line)
     if line == '':
       return
     if line[0] != Lutron.OP_RESPONSE:
-      _LOGGER.debug("ignoring %s", line)
+      _LOGGER.debug("Ignoring non-response line: %s", line)
       return
+      
     parts = line[1:].split(',')
     cmd_type = parts[0]
     integration_id = int(parts[1])
     args = parts[2:]
+      
     _LOGGER.debug(
-        "Processing update - type: %s, id: %d, args: %s",
+        "Processing command - type: %s, id: %d, args: %s",
         cmd_type, integration_id, args
     )
+      
     if cmd_type not in self._ids:
-      _LOGGER.info("Unknown cmd %s (%s)", cmd_type, line)
+      _LOGGER.warning("Unknown command type %s", cmd_type)
       return
+      
     ids = self._ids[cmd_type]
     if integration_id not in ids:
-      _LOGGER.warning("Unknown id %d (%s)", integration_id, line)
+      _LOGGER.warning("Unknown integration id %d for type %s", integration_id, cmd_type)
       return
+      
     obj = ids[integration_id]
-    handled = obj.handle_update(args)
+    _LOGGER.debug("Dispatching to object: %s", obj.name)
+    obj.handle_update(args)
 
   def connect(self):
     """Connects to the Lutron controller to send and receive commands and status"""
@@ -1503,6 +1509,10 @@ class Thermostat(LutronEntity):
         self._call_status_query = _RequestHelper()
         self._emergency_heat_query = _RequestHelper()
         
+        _LOGGER.debug(
+            "Registering thermostat %s with integration_id %s for command type %s",
+            self.name, self._integration_id, self._CMD_TYPE
+        )
         self._lutron.register_id(self._CMD_TYPE, self)
 
     @property
