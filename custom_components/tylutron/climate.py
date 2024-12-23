@@ -87,6 +87,11 @@ class TylutronThermostat(ClimateEntity):
         self._attr_unique_id = f"tylutron_climate_{thermostat.id}"
         self._attr_name = thermostat.name
         
+        _LOGGER.info(
+            "Initializing climate entity for thermostat %s (id=%s)",
+            thermostat.name, thermostat.id
+        )
+        
         # Add PRESET_MODE to supported features
         self._attr_supported_features = (
             ClimateEntityFeature.TARGET_TEMPERATURE |  # For HEAT and COOL modes
@@ -116,10 +121,11 @@ class TylutronThermostat(ClimateEntity):
         
         # Subscribe to updates
         self._thermostat.subscribe(self._handle_update, None)
+        _LOGGER.debug("Subscribed to thermostat updates")
 
     def _handle_update(self, device, context, event, params):
         """Handle updates from the thermostat."""
-        _LOGGER.debug(
+        _LOGGER.info(
             "Climate entity %s received update - event: %s, params: %s",
             self.name, event, params
         )
