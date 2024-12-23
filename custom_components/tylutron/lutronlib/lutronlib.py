@@ -1679,7 +1679,7 @@ class Thermostat(LutronEntity):
             action = int(args[0])
             
             # Temperature and setpoint updates
-            if action in (self._ACTION_TEMP_F, self._ACTION_TEMP_C):
+            if action == self._temp_action:
                 value = self._parse_temp(args[1])
                 self._temperature = value
                 self._temperature_query.notify()
