@@ -1,0 +1,6 @@
+{
+    "name": "Lutron Library",
+    "render_readme": true,
+    "domains": ["climate"],
+    "homeassistant": "2023.8.0"
+} 
