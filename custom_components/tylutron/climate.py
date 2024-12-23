@@ -115,6 +115,10 @@ class TylutronThermostat(ClimateEntity):
 
     def _handle_update(self, device, context, event, params):
         """Handle updates from the thermostat."""
+        _LOGGER.debug(
+            "Received update from thermostat %s: event=%s, params=%s",
+            self.name, event, params
+        )
         self.schedule_update_ha_state()
 
     @property
@@ -183,9 +187,17 @@ class TylutronThermostat(ClimateEntity):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
+        _LOGGER.debug(
+            "Setting temperature for %s with kwargs: %s",
+            self.name, kwargs
+        )
         try:
             if ATTR_TEMPERATURE in kwargs:
                 temp = float(kwargs[ATTR_TEMPERATURE])
+                _LOGGER.debug(
+                    "Setting single temperature %s for mode %s",
+                    temp, self.hvac_mode
+                )
                 if self.hvac_mode == HVACMode.HEAT:
                     await self.hass.async_add_executor_job(
                         self._thermostat.set_setpoints, temp, None
@@ -208,7 +220,12 @@ class TylutronThermostat(ClimateEntity):
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
+        _LOGGER.debug(
+            "Setting fan mode for %s to: %s",
+            self.name, fan_mode
+        )
         lutron_mode = HA_FAN_MODE_MAP.get(fan_mode)
+        _LOGGER.debug("Translated to Lutron mode: %s", lutron_mode)
         if lutron_mode is not None:
             await self.hass.async_add_executor_job(
                 self._thermostat.set_fan_mode, lutron_mode
@@ -216,7 +233,12 @@ class TylutronThermostat(ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
+        _LOGGER.debug(
+            "Setting HVAC mode for %s to: %s",
+            self.name, hvac_mode
+        )
         lutron_mode = HA_MODE_MAP.get(hvac_mode)
+        _LOGGER.debug("Translated to Lutron mode: %s", lutron_mode)
         if lutron_mode is not None:
             await self.hass.async_add_executor_job(
                 self._thermostat.set_mode, lutron_mode

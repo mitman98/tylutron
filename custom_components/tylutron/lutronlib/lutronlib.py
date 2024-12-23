@@ -89,11 +89,11 @@ class LutronConnection(threading.Thread):
 
     Assumes self._lock is held.
     """
-    _LOGGER.debug("Sending: %s" % cmd)
+    _LOGGER.debug("Sending (locked): %s", cmd)
     try:
       self._telnet.write(cmd.encode('ascii') + b'\r\n')
     except _EXPECTED_NETWORK_EXCEPTIONS:
-      _LOGGER.exception("Error sending {}".format(cmd))
+      _LOGGER.exception("Error sending %s", cmd)
       self._disconnect_locked()
 
   def send(self, cmd):
@@ -484,6 +484,7 @@ class Lutron(object):
 
   def _recv(self, line):
     """Invoked by the connection manager to process incoming data."""
+    _LOGGER.debug("Received from Lutron: %s", line)
     if line == '':
       return
     # Only handle query response messages, which are also sent on remote status
@@ -513,6 +514,7 @@ class Lutron(object):
     """Formats and sends the requested command to the Lutron controller."""
     out_cmd = ",".join(
         (cmd, str(integration_id)) + tuple((str(x) for x in args if x is not None)))
+    _LOGGER.debug("Sending command to Lutron: %s%s", op, out_cmd)
     self._conn.send(op + out_cmd)
 
   def load_xml_db(self, cache_path=None):
@@ -1562,6 +1564,10 @@ class Thermostat(LutronEntity):
     # Setters
     def set_mode(self, mode):
         """Set the operating mode."""
+        _LOGGER.debug(
+            "Setting mode for thermostat %s to: %s",
+            self.name, mode
+        )
         if not isinstance(mode, ThermostatMode):
             raise ValueError("Mode must be a ThermostatMode enum value")
         self._lutron.send(Lutron.OP_EXECUTE, Thermostat._CMD_TYPE,
@@ -1571,6 +1577,10 @@ class Thermostat(LutronEntity):
 
     def set_fan_mode(self, mode):
         """Set the fan mode."""
+        _LOGGER.debug(
+            "Setting fan mode for thermostat %s to: %s",
+            self.name, mode
+        )
         if not isinstance(mode, ThermostatFanMode):
             raise ValueError("Mode must be a ThermostatFanMode enum value")
         self._lutron.send(Lutron.OP_EXECUTE, Thermostat._CMD_TYPE,
@@ -1579,14 +1589,11 @@ class Thermostat(LutronEntity):
         self._fan_mode = mode
 
     def set_setpoints(self, heat_setpoint=None, cool_setpoint=None):
-        """Set heat and/or cool setpoints.
-        
-        Args:
-            heat_setpoint: New heat setpoint, or None to leave unchanged
-            cool_setpoint: New cool setpoint, or None to leave unchanged
-            
-        Note: Setting either setpoint will turn off eco mode if it's enabled.
-        """
+        """Set heat and/or cool setpoints."""
+        _LOGGER.debug(
+            "Setting setpoints for thermostat %s - Heat: %s, Cool: %s",
+            self.name, heat_setpoint, cool_setpoint
+        )
         heat_val = "%.1f" % heat_setpoint if heat_setpoint is not None else "255"
         cool_val = "%.1f" % cool_setpoint if cool_setpoint is not None else "255"
         
@@ -1614,6 +1621,10 @@ class Thermostat(LutronEntity):
 
     def handle_update(self, args):
         """Handle status updates from the thermostat."""
+        _LOGGER.debug(
+            "Received update for thermostat %s: %s",
+            self.name, args
+        )
         if len(args) < 2:
             return False
             
@@ -1677,14 +1688,10 @@ class Thermostat(LutronEntity):
             elif action == self._ACTION_SYSTEM_MODE:
                 self._system_mode = ThermostatSystemMode(int(args[1]))
                 self._system_mode_query.notify()
-                self._dispatch_event(Thermostat.Event.SYSTEM_MODE_CHANGED,
-                                   {'mode': self._system_mode})
                 
             elif action == self._ACTION_CALL_STATUS:
                 self._call_status = ThermostatCallStatus(int(args[1]))
                 self._call_status_query.notify()
-                self._dispatch_event(Thermostat.Event.CALL_STATUS_CHANGED,
-                                   {'status': self._call_status})
                 
             elif action == self._ACTION_EMERGENCY_AVAIL:
                 self._emergency_heat_available = int(args[1]) == 1
