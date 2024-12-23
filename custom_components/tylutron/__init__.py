@@ -14,9 +14,7 @@ from .lutronlib.lutronlib import Lutron
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.CLIMATE]
-
-MIN_TIME_BETWEEN_UPDATES = timedelta(hours=24)
+PLATFORMS = [Platform.CLIMATE]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tylutron from a config entry."""
@@ -44,6 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = lutron
 
+    # Load platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

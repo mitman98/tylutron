@@ -10,7 +10,11 @@ from homeassistant.components.climate import (
     PRESET_ECO,
     PRESET_NONE,
 )
-from homeassistant.components.climate.const import FanMode
+from homeassistant.components.climate.const import (
+    FAN_ON,
+    FAN_OFF,
+    FAN_AUTO,
+)
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     UnitOfTemperature,
@@ -43,8 +47,8 @@ HA_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
 
 # Map Lutron fan modes to Home Assistant fan modes
 FAN_MODE_MAP = {
-    ThermostatFanMode.AUTO: FanMode.AUTO,
-    ThermostatFanMode.ON: FanMode.ON,
+    ThermostatFanMode.AUTO: FAN_AUTO,
+    ThermostatFanMode.ON: FAN_ON,
 }
 
 # Map Home Assistant fan modes to Lutron fan modes
@@ -98,7 +102,7 @@ class TylutronThermostat(ClimateEntity):
 
         # Set available modes and fan modes
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL, HVACMode.HEAT_COOL]
-        self._attr_fan_modes = [FanMode.AUTO, FanMode.ON]
+        self._attr_fan_modes = [FAN_AUTO, FAN_ON]
         
         # Set available presets
         self._attr_preset_modes = [PRESET_NONE, PRESET_ECO]
