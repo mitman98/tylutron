@@ -159,25 +159,19 @@ class LutronConnection(threading.Thread):
         _LOGGER.info("Connected")
 
   def _main_loop(self):
-    """Main body of the the thread function.
-
-    This will maintain connection and receive remote status updates.
-    """
+    """Main body of the thread function."""
     while True:
       line = b''
       try:
         self._maybe_reconnect()
-        # If someone is sending a command, we can lose our connection so grab a
-        # copy beforehand. We don't need the lock because if the connection is
-        # open, we are the only ones that will read from telnet (the reconnect
-        # code runs synchronously in this loop).
         t = self._telnet
         if t is not None:
           line = t.read_until(b"\n", timeout=3)
+          _LOGGER.debug("Raw line from telnet: %s", line)
         else:
           raise EOFError('Telnet object already torn down')
       except _EXPECTED_NETWORK_EXCEPTIONS:
-        _LOGGER.exception("Uncaught exception")
+        _LOGGER.exception("Network exception in main loop")
         try:
           self._lock.acquire()
           self._disconnect_locked()
@@ -464,12 +458,14 @@ class Lutron(object):
       obj.subscribe(self._dispatch_legacy_subscriber, None)
 
   def register_id(self, cmd_type, obj):
-    """Registers an object (through its integration id) to receive update
-    notifications. This is the core mechanism how Output and Keypad objects get
-    notified when the controller sends status updates."""
+    """Registers an object to receive update notifications."""
+    _LOGGER.debug(
+        "Registering %s (id=%s) for command type %s",
+        obj.name, obj.id, cmd_type
+    )
     ids = self._ids.setdefault(cmd_type, {})
     if obj.id in ids:
-      raise IntegrationIdExistsError
+        raise IntegrationIdExistsError
     self._ids[cmd_type][obj.id] = obj
 
   def _dispatch_legacy_subscriber(self, obj, *args, **kwargs):
@@ -484,8 +480,6 @@ class Lutron(object):
     _LOGGER.debug("Received from Lutron: %s", line)
     if line == '':
       return
-    # Only handle query response messages, which are also sent on remote status
-    # updates (e.g. user manually pressed a keypad button)
     if line[0] != Lutron.OP_RESPONSE:
       _LOGGER.debug("ignoring %s", line)
       return
@@ -493,6 +487,10 @@ class Lutron(object):
     cmd_type = parts[0]
     integration_id = int(parts[1])
     args = parts[2:]
+    _LOGGER.debug(
+        "Processing update - type: %s, id: %d, args: %s",
+        cmd_type, integration_id, args
+    )
     if cmd_type not in self._ids:
       _LOGGER.info("Unknown cmd %s (%s)", cmd_type, line)
       return
@@ -642,21 +640,22 @@ class LutronEntity(object):
 
   def _dispatch_event(self, event: LutronEvent, params: Dict):
     """Dispatches the specified event to all the subscribers."""
+    _LOGGER.debug(
+        "Dispatching event %s with params %s to %d subscribers for %s",
+        event, params, len(self._subscribers), self.name
+    )
     for handler, context in self._subscribers:
-      handler(self, context, event, params)
+        try:
+            handler(self, context, event, params)
+        except Exception:
+            _LOGGER.exception("Error in event handler")
 
   def subscribe(self, handler: LutronEventHandler, context) -> Callable[[], None]:
-    """Subscribes to events from this entity.
-
-    handler: A callable object that takes the following arguments (in order)
-             obj: the LutrongEntity object that generated the event
-             context: user-supplied (to subscribe()) context object
-             event: the LutronEvent that was generated.
-             params: a dict of event-specific parameters
-
-    context: User-supplied, opaque object that will be passed to handler.
-    Returns: A callable that can be used to unsubscribe from the event.
-    """
+    """Subscribes to events from this entity."""
+    _LOGGER.debug(
+        "Adding subscription for %s with handler %s and context %s",
+        self.name, handler, context
+    )
     self._subscribers.append((handler, context))
     return lambda: self._subscribers.remove((handler, context))
 
@@ -1504,7 +1503,7 @@ class Thermostat(LutronEntity):
         self._call_status_query = _RequestHelper()
         self._emergency_heat_query = _RequestHelper()
         
-        self._lutron.register_id(Thermostat._CMD_TYPE, self)
+        self._lutron.register_id(self._CMD_TYPE, self)
 
     @property
     def id(self):
@@ -1618,26 +1617,19 @@ class Thermostat(LutronEntity):
 
     def handle_update(self, args):
         """Handle status updates from the thermostat."""
-        _LOGGER.debug(
-            "Received update for thermostat %s: %s",
-            self.name, args
-        )
-        if len(args) < 2:
-            return False
-            
         try:
             action = int(args[0])
-            
-            # Temperature and setpoint updates
+            # Temperature updates
             if action in (self._ACTION_TEMP_F, self._ACTION_TEMP_C):
                 value = self._parse_temp(args[1])
                 self._temperature = value
                 self._temperature_query.notify()
                 self._dispatch_event(Thermostat.Event.TEMPERATURE_CHANGED, 
                                    {'temperature': value})
-                
+            
+            # Setpoint updates
             elif action in (self._ACTION_SETPOINTS_F, self._ACTION_SETPOINTS_C,
-                          self._ACTION_SETPOINTS_NO_ECO_F, self._ACTION_SETPOINTS_NO_ECO_C):
+                           self._ACTION_SETPOINTS_NO_ECO_F, self._ACTION_SETPOINTS_NO_ECO_C):
                 if len(args) < 3:
                     return False
                 heat = self._parse_temp(args[1])
@@ -1647,54 +1639,66 @@ class Thermostat(LutronEntity):
                 self._setpoints_query.notify()
                 self._dispatch_event(Thermostat.Event.SETPOINTS_CHANGED,
                                    {'heat': heat, 'cool': cool})
-                
+            
+            # Mode updates    
             elif action == self._ACTION_MODE:
                 self._mode = ThermostatMode(int(args[1]))
                 self._mode_query.notify()
                 self._dispatch_event(Thermostat.Event.MODE_CHANGED,
                                    {'mode': self._mode})
-                
+            
+            # Fan mode updates
             elif action == self._ACTION_FANMODE:
                 self._fan_mode = ThermostatFanMode(int(args[1]))
                 self._fan_mode_query.notify()
                 self._dispatch_event(Thermostat.Event.FANMODE_CHANGED,
                                    {'mode': self._fan_mode})
-                
+
+            # Eco mode updates
             elif action == self._ACTION_ECO_MODE:
                 self._eco_mode = int(args[1]) == 2  # 1=Off, 2=On
                 self._eco_mode_query.notify()
                 self._dispatch_event(Thermostat.Event.ECO_MODE_CHANGED,
                                    {'enabled': self._eco_mode})
-                
+            
             elif action == self._ACTION_ECO_OFFSET:
                 self._eco_offset = float(args[1])
                 self._eco_offset_query.notify()
-                
+            
             elif action == self._ACTION_SCHEDULE_STATUS:
                 self._schedule_mode = ThermostatScheduleMode(int(args[1]))
                 self._schedule_mode_query.notify()
                 self._dispatch_event(Thermostat.Event.SCHEDULE_MODE_CHANGED,
                                    {'mode': self._schedule_mode})
-                
+
+            # Sensor status updates
             elif action == self._ACTION_SENSOR_STATUS:
                 self._sensor_status = ThermostatSensorStatus(int(args[1]))
                 self._sensor_status_query.notify()
-                
+                self._dispatch_event(Thermostat.Event.SENSOR_STATUS_CHANGED,
+                                   {'status': self._sensor_status})
+            
+            # System mode updates
             elif action == self._ACTION_SYSTEM_MODE:
                 self._system_mode = ThermostatSystemMode(int(args[1]))
                 self._system_mode_query.notify()
-                
+                self._dispatch_event(Thermostat.Event.SYSTEM_MODE_CHANGED,
+                                   {'mode': self._system_mode})
+            
+            # Call status updates
             elif action == self._ACTION_CALL_STATUS:
                 self._call_status = ThermostatCallStatus(int(args[1]))
                 self._call_status_query.notify()
-                
+                self._dispatch_event(Thermostat.Event.CALL_STATUS_CHANGED,
+                                   {'status': self._call_status})
+
             elif action == self._ACTION_EMERGENCY_AVAIL:
                 self._emergency_heat_available = int(args[1]) == 1
                 self._emergency_heat_query.notify()
-                
+            
             else:
                 return False
-                
+            
             return True
             
         except (ValueError, IndexError):

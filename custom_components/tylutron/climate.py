@@ -107,6 +107,10 @@ class TylutronThermostat(ClimateEntity):
         # Set available presets
         self._attr_preset_modes = [PRESET_NONE, PRESET_ECO]
         
+        # Add temperature limits
+        self._attr_min_temp = 45  # Typical Lutron min
+        self._attr_max_temp = 95  # Typical Lutron max
+        
         # Set temperature unit
         self._attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
         
@@ -253,3 +257,18 @@ class TylutronThermostat(ClimateEntity):
         await self.hass.async_add_executor_job(
             self._thermostat.set_eco_mode, eco_enabled
         ) 
+
+    @property
+    def min_temp(self) -> float:
+        """Return the minimum temperature."""
+        return self._attr_min_temp
+
+    @property
+    def max_temp(self) -> float:
+        """Return the maximum temperature."""
+        return self._attr_max_temp
+
+    @property
+    def is_aux_heat(self) -> Optional[bool]:
+        """Return true if aux heat is on."""
+        return self._thermostat.mode == ThermostatMode.EMERGENCY_HEAT 
