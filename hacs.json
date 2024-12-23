@@ -1,5 +1,5 @@
 {
-    "name": "Lutron Library",
+    "name": "Tylutron",
     "render_readme": true,
     "domains": ["climate"],
     "homeassistant": "2023.8.0"
