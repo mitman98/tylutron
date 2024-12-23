@@ -43,7 +43,13 @@ MODE_MAP = {
 }
 
 # Map Home Assistant modes to Lutron modes
-HA_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
+HA_MODE_MAP = {
+    HVACMode.OFF: ThermostatMode.OFF,
+    HVACMode.HEAT: ThermostatMode.HEAT,
+    HVACMode.COOL: ThermostatMode.COOL,
+    HVACMode.HEAT_COOL: ThermostatMode.AUTO,
+    # Note: EMERGENCY_HEAT is handled separately through is_aux_heat
+}
 
 # Map Lutron fan modes to Home Assistant fan modes
 FAN_MODE_MAP = {
