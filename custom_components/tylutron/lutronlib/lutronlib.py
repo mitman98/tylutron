@@ -182,7 +182,6 @@ class LutronConnection(threading.Thread):
     """Main body of the thread function."""
     while not self._done:  # Add check for _done flag
         try:
-            _LOGGER.debug("Main loop looping")
             self._maybe_reconnect()
             t = self._telnet
             if t is not None:
