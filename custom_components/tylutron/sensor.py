@@ -4,7 +4,6 @@ from typing import Optional
 
 from homeassistant.components.sensor import (
     SensorEntity,
-    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -49,7 +48,6 @@ class ThermostatSensorStatusSensor(SensorEntity):
         self._thermostat = thermostat
         self._attr_unique_id = f"tylutron_sensor_status_{thermostat.id}"
         self._attr_name = f"{thermostat.name} Sensor Status"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
         
         # Add device info
         self._attr_device_info = {
