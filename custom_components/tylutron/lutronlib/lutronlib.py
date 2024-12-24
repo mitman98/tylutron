@@ -1502,6 +1502,8 @@ class Thermostat(LutronEntity):
     _ACTION_TEMP_C = 15            # Temperature in Celsius
     _ACTION_SETPOINTS_C = 16       # Heat and Cool setpoints in Celsius
     _ACTION_SETPOINTS_NO_ECO_C = 17 # Setpoints without eco offset in Celsius
+    _ACTION_SINGLE_SETPOINT_F = 18  # Single setpoint and drifts in Fahrenheit
+    _ACTION_SINGLE_SETPOINT_C = 19  # Single setpoint and drifts in Celsius
 
     def __init__(self, lutron, **kwargs):
         """Initialize the thermostat object.
@@ -1535,8 +1537,9 @@ class Thermostat(LutronEntity):
         self._system_mode = None
         self._call_status = None
         self._emergency_heat_available = None
+        self._sensor_status = None
         
-        # Create query waiters for each value we can request
+        # Create query waiters
         self._temperature_query = _RequestHelper()
         self._setpoints_query = _RequestHelper()
         self._mode_query = _RequestHelper()
@@ -1547,6 +1550,7 @@ class Thermostat(LutronEntity):
         self._system_mode_query = _RequestHelper()
         self._call_status_query = _RequestHelper()
         self._emergency_heat_query = _RequestHelper()
+        self._sensor_status_query = _RequestHelper()
         
         _LOGGER.debug(
             "Registering thermostat %s with integration_id %s for command type %s",
@@ -1678,24 +1682,32 @@ class Thermostat(LutronEntity):
         try:
             action = int(args[0])
             
-            # Temperature and setpoint updates
-            if action == self._temp_action:
-                value = self._parse_temp(args[1])
-                self._temperature = value
-                self._temperature_query.notify()
-                self._dispatch_event(Thermostat.Event.TEMPERATURE_CHANGED, 
+            # Skip temperature-related updates that don't match our unit
+             # Always ignore single setpoint updates
+            if action in (self._ACTION_SINGLE_SETPOINT_F, self._ACTION_SINGLE_SETPOINT_C):
+                return True
+
+            # Temperature update
+            if action in (self._ACTION_TEMP_F, self._ACTION_TEMP_C):
+                if action == self._temp_action:
+                    value = self._parse_temp(args[1])
+                    self._temperature = value
+                    self._temperature_query.notify()
+                    self._dispatch_event(Thermostat.Event.TEMPERATURE_CHANGED, 
                                    {'temperature': value})
                 
-            elif action == self._setpoints_action:
-                if len(args) < 3:
-                    return False
-                heat = self._parse_temp(args[1])
-                cool = self._parse_temp(args[2])
-                self._heat_setpoint = heat
-                self._cool_setpoint = cool
-                self._setpoints_query.notify()
-                self._dispatch_event(Thermostat.Event.SETPOINTS_CHANGED,
-                                   {'heat': heat, 'cool': cool})
+            # Setpoint update
+            elif action in (self._ACTION_SETPOINTS_F, self._ACTION_SETPOINTS_C):
+                if action == self._setpoints_action:
+                    if len(args) < 3:
+                        return False
+                    heat = self._parse_temp(args[1])
+                    cool = self._parse_temp(args[2])
+                    self._heat_setpoint = heat
+                    self._cool_setpoint = cool
+                    self._setpoints_query.notify()
+                    self._dispatch_event(Thermostat.Event.SETPOINTS_CHANGED,
+                                      {'heat': heat, 'cool': cool})
                 
             elif action == self._ACTION_MODE:
                 self._mode = ThermostatMode(int(args[1]))
@@ -1778,6 +1790,7 @@ class Thermostat(LutronEntity):
                          self._integration_id, self._ACTION_SCHEDULE_STATUS)
 
     def _query_sensor_status(self):
+        """Query the temperature sensor connection status."""
         self._lutron.send(Lutron.OP_QUERY, Thermostat._CMD_TYPE,
                          self._integration_id, self._ACTION_SENSOR_STATUS)
 

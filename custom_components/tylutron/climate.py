@@ -98,6 +98,15 @@ class TylutronThermostat(ClimateEntity):
             thermostat.name, thermostat.id
         )
         
+        # Add device info to match sensor
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, str(thermostat.id))},
+            "name": thermostat.name,
+            "manufacturer": "Lutron",
+            "model": "Thermostat",
+            "via_device": (DOMAIN, thermostat.legacy_uuid or str(thermostat.id)),
+        }
+        
         # Add PRESET_MODE to supported features
         self._attr_supported_features = (
             ClimateEntityFeature.TARGET_TEMPERATURE |  # For HEAT and COOL modes
